@@ -1,0 +1,462 @@
+```html
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>משחק ההכרות שלנו</title>
+    
+    <!-- ספריות React ו-Tailwind לעבודה ישירות מהדפדפן -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* מניעת גלילה במסכים ניידים */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f172a; /* צבע כהה שמתאים לשוליים */
+        }
+    </style>
+</head>
+<body>
+    <div id="root" class="w-full h-full"></div>
+
+    <!-- קוד המשחק -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // קטגוריות המשחק
+        const CATEGORIES = [
+          { id: 'background', name: 'היכרות ורקע', range: [1, 11] },
+          { id: 'faith', name: 'אמונה והשקפה', range: [12, 20] },
+          { id: 'values', name: 'מידות וערכים', range: [21, 29] },
+          { id: 'daily', name: 'יומיום ושגרה', range: [30, 36] },
+          { id: 'relationship', name: 'זוגיות ותקשורת', range: [37, 49] },
+          { id: 'home', name: 'בית וילדים', range: [50, 60] },
+          { id: 'future', name: 'עתיד והשראה', range: [61, 70] },
+          { id: 'ai', name: 'הפתעה מה-AI', range: [71, 80] },
+          { id: 'specific', name: 'שאלות ספציפיות', range: [81, 89] },
+          { id: 'ending', name: 'שאלות סיום', range: [90, 92] }
+        ];
+
+        // אייקונים
+        const XIcon = () => (
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        );
+
+        const ResetIcon = () => (
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+        );
+
+        function App() {
+          const [state, setState] = useState({
+            turn: 'ahinoam', 
+            currentCatIdx: 0,
+            drawnNumbers: [],
+            currentNumber: '?',
+            hasStarted: false
+          });
+
+          const [tempNum, setTempNum] = useState('?');
+          const [isRolling, setIsRolling] = useState(false);
+          const [popup, setPopup] = useState(null);
+          const [isLoaded, setIsLoaded] = useState(false);
+          
+          const [dims, setDims] = useState({ w: 0, h: 0 });
+
+          const stateRef = useRef(state);
+          const audioCtxRef = useRef(null);
+
+          useEffect(() => {
+            const updateDims = () => setDims({ w: window.innerHeight, h: window.innerWidth });
+            updateDims();
+            window.addEventListener('resize', updateDims);
+            return () => window.removeEventListener('resize', updateDims);
+          }, []);
+
+          useEffect(() => {
+            try {
+              const saved = localStorage.getItem('shidduchGame_v9');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                setState(parsed);
+                setTempNum(parsed.currentNumber || '?');
+              }
+            } catch (e) {}
+            setIsLoaded(true);
+          }, []);
+
+          useEffect(() => {
+            if (isLoaded) {
+              stateRef.current = state;
+              try { localStorage.setItem('shidduchGame_v9', JSON.stringify(state)); } catch (e) {}
+            }
+          }, [state, isLoaded]);
+
+          const initAudio = useCallback(() => {
+            try {
+              if (!audioCtxRef.current) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) audioCtxRef.current = new AudioContextClass();
+              }
+              if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+                audioCtxRef.current.resume();
+              }
+            } catch (e) {}
+          }, []);
+
+          const playSound = useCallback((type) => {
+            try {
+              const ctx = audioCtxRef.current;
+              if (!ctx) return;
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+
+              if (type === 'tick') {
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.05);
+              } else if (type === 'chime') {
+                osc.frequency.setValueAtTime(500, ctx.currentTime);
+                osc.frequency.setValueAtTime(900, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.6);
+              }
+            } catch (e) {}
+          }, []);
+
+          const triggerVibration = useCallback((pattern) => {
+            try {
+              if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(pattern);
+              }
+            } catch (e) {}
+          }, []);
+
+          const startRoll = useCallback(() => {
+            setIsRolling(true);
+            initAudio();
+            
+            const { currentCatIdx, drawnNumbers } = stateRef.current;
+            const cat = CATEGORIES[currentCatIdx];
+            
+            if (!cat) {
+              setIsRolling(false);
+              return;
+            }
+            
+            const allCatNums = Array.from({length: cat.range[1] - cat.range[0] + 1}, (_, i) => cat.range[0] + i);
+            const remainingNums = allCatNums.filter(n => !drawnNumbers.includes(n));
+
+            if (remainingNums.length === 0) {
+              setIsRolling(false);
+              return;
+            }
+
+            const isLastNum = remainingNums.length === 1;
+            const animationPool = isLastNum ? allCatNums : remainingNums;
+            const finalResult = remainingNums[Math.floor(Math.random() * remainingNums.length)];
+
+            let ticks = 0;
+            const maxTicks = 35; 
+            let delay = 30;
+
+            const animateTick = () => {
+              ticks++;
+              const randomNumFromPool = animationPool[Math.floor(Math.random() * animationPool.length)];
+              setTempNum(randomNumFromPool);
+              
+              playSound('tick');
+              triggerVibration(20);
+
+              if (ticks < maxTicks) {
+                if (ticks > maxTicks * 0.6) delay += 15;
+                setTimeout(animateTick, delay);
+              } else {
+                finalizeRoll(finalResult, isLastNum);
+              }
+            };
+            
+            setTimeout(animateTick, delay);
+          }, [initAudio, playSound, triggerVibration]);
+
+          const finalizeRoll = (finalNum, isLastNum) => {
+            playSound('chime');
+            triggerVibration([100, 50, 100]);
+            setTempNum(finalNum);
+
+            const { currentCatIdx } = stateRef.current;
+
+            setState(prev => {
+              const nextTurn = prev.turn === 'ahinoam' ? 'shmuel' : 'ahinoam';
+              const newDrawn = [...prev.drawnNumbers, finalNum];
+              return {
+                ...prev,
+                drawnNumbers: newDrawn,
+                turn: nextTurn,
+                currentNumber: finalNum
+              };
+            });
+
+            if (isLastNum) {
+              setTimeout(() => {
+                if (currentCatIdx + 1 < CATEGORIES.length) {
+                  setPopup({ type: 'cat_transition', prev: currentCatIdx, next: currentCatIdx + 1 });
+                  setState(s => ({ ...s, currentCatIdx: currentCatIdx + 1 }));
+                } else {
+                  setPopup({ type: 'end' });
+                }
+              }, 1500); 
+            }
+            
+            setIsRolling(false);
+          };
+
+          const handlePlayerClick = (player) => {
+            if (state.turn !== player || isRolling || popup || !isLoaded) return;
+            initAudio();
+            if (!state.hasStarted) {
+              setPopup({ type: 'start' });
+              return;
+            }
+            startRoll();
+          };
+
+          const handleReset = () => {
+            try { localStorage.removeItem('shidduchGame_v9'); } catch(e){}
+            setState({
+              turn: 'ahinoam', 
+              currentCatIdx: 0,
+              drawnNumbers: [],
+              currentNumber: '?',
+              hasStarted: false
+            });
+            setTempNum('?');
+            setPopup(null);
+          };
+
+          const PopupOverlay = () => {
+            const [timeLeft, setTimeLeft] = useState(5);
+
+            const closePopup = useCallback(() => {
+              if (!popup) return;
+              const type = popup.type;
+              setPopup(null);
+              if (type === 'start') {
+                setState(s => ({ ...s, hasStarted: true }));
+                setTimeout(startRoll, 300);
+              }
+            }, [popup]);
+
+            useEffect(() => {
+              if (!popup || popup.type === 'end' || popup.type === 'reset') return;
+              setTimeLeft(5);
+              const interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+              return () => clearInterval(interval);
+            }, [popup]);
+
+            useEffect(() => {
+              if (popup && (popup.type === 'start' || popup.type === 'cat_transition') && timeLeft <= 0) {
+                closePopup();
+              }
+            }, [timeLeft, popup, closePopup]);
+
+            if (!popup) return null;
+
+            let content = {};
+            if (popup.type === 'start') {
+              const cat = CATEGORIES[0];
+              const count = cat.range[1] - cat.range[0] + 1;
+              content = { title: "מתחילים במשחק!", text: "הקטגוריה הראשונה:", subtext: `"${cat.name}" (${count} שאלות)` };
+            } else if (popup.type === 'cat_transition') {
+              const prevCat = CATEGORIES[popup.prev];
+              const nextCat = CATEGORIES[popup.next];
+              const prevCount = prevCat ? (prevCat.range[1] - prevCat.range[0] + 1) : 0;
+              const nextCount = nextCat ? (nextCat.range[1] - nextCat.range[0] + 1) : 0;
+              content = { title: "מעולה, סיימנו את החלק!", text: prevCat ? `סיימנו את: "${prevCat.name}" (${prevCount} שאלות)` : '', subtext: nextCat ? `הבא בתור: "${nextCat.name}" (${nextCount} שאלות)` : '' };
+            } else if (popup.type === 'end') {
+              content = { title: "סיימנו!", text: "עניתם על כל השאלות במשחק.", subtext: "כל הכבוד על השיח הפתוח!" };
+            } else if (popup.type === 'reset') {
+              content = { title: "איפוס משחק", text: "האם לאפס את ההתקדמות ולהתחיל מחדש?" };
+            }
+
+            const showTimer = popup.type === 'start' || popup.type === 'cat_transition';
+
+            return (
+              <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-6" dir="rtl">
+                <div className="bg-white rounded-[2rem] p-8 w-[90%] max-w-[450px] shadow-2xl text-center relative border-4 border-blue-100 popup-anim">
+                  {popup.type !== 'reset' && (
+                    <button onClick={closePopup} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200">
+                      <XIcon />
+                    </button>
+                  )}
+                  
+                  <div className="mt-2 mb-6">
+                    <h3 className="text-3xl font-black text-slate-800 mb-3">{content.title}</h3>
+                    <p className="text-xl text-slate-600 leading-tight">{content.text}</p>
+                    {content.subtext && <p className="text-2xl font-bold text-blue-600 mt-3">{content.subtext}</p>}
+                  </div>
+
+                  {showTimer && (
+                    <div className="mt-6">
+                      <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden relative">
+                        <div className="bg-blue-500 h-full transition-all duration-1000 ease-linear" style={{ width: `${(Math.max(0, timeLeft) / 5) * 100}%` }} />
+                      </div>
+                      <p className="text-base text-slate-400 font-medium">נסגר בעוד {Math.max(0, timeLeft)} שניות...</p>
+                    </div>
+                  )}
+
+                  {popup.type === 'reset' && (
+                    <div className="flex gap-4 justify-center mt-8">
+                      <button className="px-8 py-3 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-bold text-xl shadow-md" onClick={handleReset}>כן, אפס</button>
+                      <button className="px-8 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl font-bold text-xl" onClick={() => setPopup(null)}>ביטול</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          };
+
+          const PlayerButton = ({ id, name, textRotationClass }) => {
+            const isTurn = state.turn === id;
+            if (!isTurn) {
+              return (
+                <button disabled className="w-full h-full rounded-[2rem] bg-slate-200/70 text-slate-400 text-3xl font-bold border-2 border-slate-300 shadow-inner flex items-center justify-center transition-all">
+                  <span className={textRotationClass}>{name}</span>
+                </button>
+              );
+            }
+            return (
+              <div className="active-turn-wrapper w-full h-full shadow-2xl cursor-pointer" onClick={() => handlePlayerClick(id)}>
+                <div className="active-turn-inner w-full h-full flex items-center justify-center text-4xl font-black text-blue-900 bg-white shadow-sm">
+                   <span className={textRotationClass}>{name}</span>
+                </div>
+              </div>
+            );
+          };
+
+          if (!isLoaded || dims.w === 0) return <div className="fixed inset-0 bg-slate-100" />;
+
+          const cat = CATEGORIES[state.currentCatIdx];
+          const totalInCat = cat ? (cat.range[1] - cat.range[0] + 1) : 0;
+          const drawnInCat = cat ? state.drawnNumbers.filter(n => n >= cat.range[0] && n <= cat.range[1]).length : 0;
+          const remainingInCat = totalInCat - drawnInCat;
+
+          const landscapeWidth = dims.w; 
+          const landscapeHeight = dims.h; 
+
+          return (
+            <div className="fixed inset-0 overflow-hidden bg-slate-900 font-sans select-none flex items-center justify-center">
+              
+              <style>{`
+                @keyframes spin-border { 100% { transform: rotate(360deg); } }
+                @keyframes soft-pulse {
+                  0%, 100% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.4); }
+                  50% { transform: scale(0.98); box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2); }
+                }
+                @keyframes popup-enter {
+                  from { opacity: 0; transform: scale(0.9); }
+                  to { opacity: 1; transform: scale(1); }
+                }
+                .popup-anim {
+                  animation: popup-enter 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+                }
+                .active-turn-wrapper {
+                  position: relative;
+                  overflow: hidden;
+                  animation: soft-pulse 2s ease-in-out infinite;
+                  padding: 8px; 
+                  border-radius: 2.2rem; 
+                }
+                .active-turn-wrapper::before {
+                  content: '';
+                  position: absolute;
+                  top: -150%; left: -50%; width: 200%; height: 400%;
+                  background: conic-gradient(from 0deg, #3b82f6, #ec4899, #8b5cf6, #3b82f6);
+                  animation: spin-border 3s linear infinite;
+                }
+                .active-turn-inner {
+                  position: relative;
+                  background: white;
+                  border-radius: 1.8rem; 
+                  z-index: 10;
+                }
+              `}</style>
+
+              <div 
+                className="absolute bg-gradient-to-br from-indigo-50 via-sky-50 to-rose-50 flex flex-row p-6 gap-6"
+                dir="rtl"
+                style={{
+                  width: `${landscapeWidth}px`,
+                  height: `${landscapeHeight}px`,
+                  transform: 'rotate(-90deg)'
+                }}
+              >
+                
+                <div className="w-[120px] shrink-0 h-full">
+                  <PlayerButton id="ahinoam" name="אחינעם" textRotationClass="rotate-90 whitespace-nowrap block" />
+                </div>
+
+                <div className="flex-1 h-full flex flex-col justify-center items-center gap-4 relative">
+                  
+                  <div className="w-full flex justify-start mb-[-4px]">
+                     <button onClick={() => setPopup({type: 'reset'})} className="p-3 bg-white/70 backdrop-blur rounded-full text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 transition-colors">
+                        <ResetIcon />
+                     </button>
+                  </div>
+
+                  <div className="w-full bg-white/70 backdrop-blur-md py-3 rounded-[1.5rem] shadow-sm border border-white flex justify-center items-center">
+                     <h1 className="text-xl font-bold text-slate-700 tracking-wide">משחק ההכרות שלנו</h1>
+                  </div>
+
+                  <div className={`flex-1 w-full bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-xl border-4 flex items-center justify-center transition-all duration-300 ${isRolling ? 'border-pink-300 scale-[1.02]' : 'border-blue-200'}`}>
+                    <span className={`text-[7rem] leading-none font-black ${isRolling ? 'text-blue-500 animate-pulse' : 'text-slate-800'}`}>
+                      {tempNum}
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-white/70 backdrop-blur-md py-3 px-2 rounded-[1.5rem] shadow-sm border border-blue-100 flex flex-col justify-center items-center">
+                    <h2 className="text-xl font-black text-blue-900 text-center">
+                      {cat ? cat.name : 'סיום משחק'}
+                    </h2>
+                    {cat && (
+                      <p className="text-sm font-bold text-slate-500 mt-1">
+                        {remainingInCat > 0 ? `נשארו ${remainingInCat} שאלות בקטגוריה` : 'הקטגוריה הסתיימה'}
+                      </p>
+                    )}
+                  </div>
+
+                </div>
+
+                <div className="w-[120px] shrink-0 h-full">
+                  <PlayerButton id="shmuel" name="שמואל צבי" textRotationClass="-rotate-90 whitespace-nowrap block" />
+                </div>
+
+                <PopupOverlay />
+
+              </div>
+
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+```
