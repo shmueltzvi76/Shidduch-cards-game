@@ -84,6 +84,20 @@
           { id: 'ending', name: 'שאלות סיום', range: [90, 92] }
         ];
 
+        // TODO: replace these placeholder texts/options with the real 92 questions + 5 answer options each.
+        const QUESTIONS = (() => {
+          const map = {};
+          CATEGORIES.forEach(cat => {
+            for (let n = cat.range[0]; n <= cat.range[1]; n++) {
+              map[n] = {
+                text: `שאלה מספר ${n} (${cat.name}) - יש להזין כאן את נוסח השאלה.`,
+                options: ['תשובה א׳', 'תשובה ב׳', 'תשובה ג׳', 'תשובה ד׳', 'תשובה ה׳']
+              };
+            }
+          });
+          return map;
+        })();
+
         const XIcon = () => (
           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         );
@@ -94,7 +108,7 @@
 
         function App() {
           const [state, setState] = useState({
-            turn: 'ahinoam', 
+            turn: 'her',
             currentCatIdx: 0,
             drawnNumbers: [],
             currentNumber: '?',
@@ -104,6 +118,8 @@
           const [tempNum, setTempNum] = useState('?');
           const [isRolling, setIsRolling] = useState(false);
           const [popup, setPopup] = useState(null);
+          const [slideDir, setSlideDir] = useState(null);
+          const [pendingCatTransition, setPendingCatTransition] = useState(null);
           const [isLoaded, setIsLoaded] = useState(false);
           const [dims, setDims] = useState({ w: 0, h: 0 });
 
@@ -122,6 +138,8 @@
               const saved = localStorage.getItem('shidduchGame_Final');
               if (saved) {
                 const parsed = JSON.parse(saved);
+                if (parsed.turn === 'ahinoam') parsed.turn = 'her';
+                else if (parsed.turn === 'shmuel') parsed.turn = 'me';
                 setState(parsed);
                 setTempNum(parsed.currentNumber || '?');
               }
@@ -230,15 +248,23 @@
             setTimeout(animateTick, delay);
           }, [initAudio, playSound, triggerVibration]);
 
+          const openQuestionPopup = (number, opts) => {
+            const q = QUESTIONS[number] || {
+              text: `שאלה מספר ${number}`,
+              options: ['תשובה א׳', 'תשובה ב׳', 'תשובה ג׳', 'תשובה ד׳', 'תשובה ה׳']
+            };
+            setPopup({ type: 'question', number, text: q.text, options: q.options, ...opts });
+          };
+
           const finalizeRoll = (finalNum, isLastNum) => {
             playSound('chime');
             triggerVibration([100, 50, 100]);
             setTempNum(finalNum);
 
-            const { currentCatIdx } = stateRef.current;
+            const { currentCatIdx, turn: rollingPlayer } = stateRef.current;
 
             setState(prev => {
-              const nextTurn = prev.turn === 'ahinoam' ? 'shmuel' : 'ahinoam';
+              const nextTurn = prev.turn === 'her' ? 'me' : 'her';
               const newDrawn = [...prev.drawnNumbers, finalNum];
               return {
                 ...prev,
@@ -248,18 +274,38 @@
               };
             });
 
-            if (isLastNum) {
-              setTimeout(() => {
-                if (currentCatIdx + 1 < CATEGORIES.length) {
-                  setPopup({ type: 'cat_transition', prev: currentCatIdx, next: currentCatIdx + 1 });
-                  setState(s => ({ ...s, currentCatIdx: currentCatIdx + 1 }));
+            setPendingCatTransition(isLastNum ? currentCatIdx : null);
+            setIsRolling(false);
+
+            setTimeout(() => {
+              openQuestionPopup(finalNum, { rollingPlayer });
+            }, 600);
+          };
+
+          const handleAnswerSelected = () => {
+            if (!popup || popup.type !== 'question') return;
+            const dir = popup.rollingPlayer === 'me' ? 'left' : 'right';
+            const wasReopened = !!popup.reopened;
+            setSlideDir(dir);
+            setTimeout(() => {
+              setPopup(null);
+              setSlideDir(null);
+              if (!wasReopened && pendingCatTransition !== null) {
+                const finishedCatIdx = pendingCatTransition;
+                setPendingCatTransition(null);
+                if (finishedCatIdx + 1 < CATEGORIES.length) {
+                  setPopup({ type: 'cat_transition', prev: finishedCatIdx, next: finishedCatIdx + 1 });
+                  setState(s => ({ ...s, currentCatIdx: finishedCatIdx + 1 }));
                 } else {
                   setPopup({ type: 'end' });
                 }
-              }, 1500); 
-            }
-            
-            setIsRolling(false);
+              }
+            }, 350);
+          };
+
+          const handleNumberClick = () => {
+            if (isRolling || popup || !isLoaded || state.currentNumber === '?') return;
+            openQuestionPopup(state.currentNumber, { reopened: true });
           };
 
           const handlePlayerClick = (player) => {
@@ -275,7 +321,7 @@
           const handleReset = () => {
             try { localStorage.removeItem('shidduchGame_Final'); } catch(e){}
             setState({
-              turn: 'ahinoam', 
+              turn: 'her',
               currentCatIdx: 0,
               drawnNumbers: [],
               currentNumber: '?',
@@ -283,6 +329,8 @@
             });
             setTempNum('?');
             setPopup(null);
+            setSlideDir(null);
+            setPendingCatTransition(null);
           };
 
           const PopupOverlay = () => {
@@ -299,7 +347,7 @@
             }, [popup]);
 
             useEffect(() => {
-              if (!popup || popup.type === 'end' || popup.type === 'reset') return;
+              if (!popup || popup.type === 'end' || popup.type === 'reset' || popup.type === 'question') return;
               setTimeLeft(5);
               const interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
               return () => clearInterval(interval);
@@ -312,6 +360,33 @@
             }, [timeLeft, popup, closePopup]);
 
             if (!popup) return null;
+
+            if (popup.type === 'question') {
+              const slideClass = slideDir === 'left'
+                ? '-translate-x-[120%] opacity-0'
+                : slideDir === 'right'
+                ? 'translate-x-[120%] opacity-0'
+                : 'translate-x-0 opacity-100';
+              return (
+                <div className="absolute inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-6" dir="rtl">
+                  <div className={`bg-white rounded-[2rem] p-8 w-[90%] max-w-[450px] shadow-2xl text-center border-4 border-blue-100 popup-anim transition-all duration-300 ease-in ${slideClass}`}>
+                    <div className="mb-2 text-sm font-bold text-blue-500">שאלה מספר {popup.number}</div>
+                    <h3 className="text-2xl font-black text-slate-800 mb-6 leading-snug">{popup.text}</h3>
+                    <div className="flex flex-col gap-3">
+                      {popup.options.map((opt, i) => (
+                        <button
+                          key={i}
+                          onClick={handleAnswerSelected}
+                          className="w-full py-3 px-4 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 rounded-2xl text-lg font-bold text-blue-900 border-2 border-blue-100 transition-colors text-right"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
             let content = {};
             if (popup.type === 'start') {
@@ -408,7 +483,7 @@
               >
                 
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="ahinoam" name="אחינעם" textRotationClass="rotate-90 whitespace-nowrap block" />
+                  <PlayerButton id="her" name="את" textRotationClass="rotate-90 whitespace-nowrap block" />
                 </div>
 
                 <div className="flex-1 h-full flex flex-col justify-center items-center gap-4 relative">
@@ -423,7 +498,10 @@
                      <h1 className="text-xl font-bold text-slate-700 tracking-wide">משחק ההכרות שלנו</h1>
                   </div>
 
-                  <div className={`flex-1 w-full bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-xl border-4 flex items-center justify-center transition-all duration-300 ${isRolling ? 'border-pink-300 scale-[1.02]' : 'border-blue-200'}`}>
+                  <div
+                    onClick={handleNumberClick}
+                    className={`flex-1 w-full bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-xl border-4 flex items-center justify-center transition-all duration-300 ${isRolling ? 'border-pink-300 scale-[1.02]' : 'border-blue-200'} ${!isRolling && !popup && state.currentNumber !== '?' ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+                  >
                     <span className={`text-[7rem] leading-none font-black ${isRolling ? 'text-blue-500 animate-pulse' : 'text-slate-800'}`}>
                       {tempNum}
                     </span>
@@ -443,7 +521,7 @@
                 </div>
 
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="shmuel" name="שמואל צבי" textRotationClass="-rotate-90 whitespace-nowrap block" />
+                  <PlayerButton id="me" name="אני" textRotationClass="-rotate-90 whitespace-nowrap block" />
                 </div>
 
                 <PopupOverlay />
