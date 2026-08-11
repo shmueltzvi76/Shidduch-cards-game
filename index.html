@@ -280,7 +280,7 @@
               if (type === 'tick') {
                 osc.frequency.setValueAtTime(600, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.05);
-                gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                gain.gain.setValueAtTime(0.035, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.05);
@@ -291,6 +291,21 @@
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.6);
+              } else if (type === 'open') {
+                osc.frequency.setValueAtTime(440, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.18);
+                gain.gain.setValueAtTime(0.001, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.35);
+              } else if (type === 'close') {
+                osc.frequency.setValueAtTime(520, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(280, ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.07, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
               }
             } catch (e) {}
           }, []);
@@ -357,6 +372,8 @@
               question: `שאלה מספר ${number}`,
               options: { א: '', ב: '', ג: '', ד: '', ה: '' }
             };
+            playSound('open');
+            triggerVibration(15);
             setPopup({
               type: 'question',
               number,
@@ -397,6 +414,8 @@
           const closeQuestionPopup = () => {
             if (!popup || popup.type !== 'question') return;
             const wasReopened = !!popup.reopened;
+            playSound('close');
+            triggerVibration(15);
             setPopup(null);
             if (!wasReopened && pendingCatTransition !== null) {
               const finishedCatIdx = pendingCatTransition;
@@ -441,6 +460,21 @@
 
           const PopupOverlay = () => {
             const [timeLeft, setTimeLeft] = useState(5);
+            const swipeRef = useRef({ x: 0, y: 0, active: false });
+
+            const handleSwipeStart = useCallback((e) => {
+              swipeRef.current = { x: e.clientX, y: e.clientY, active: true };
+            }, []);
+
+            const handleSwipeEnd = useCallback((e) => {
+              if (!swipeRef.current.active) return;
+              swipeRef.current.active = false;
+              const dx = e.clientX - swipeRef.current.x;
+              const dy = e.clientY - swipeRef.current.y;
+              if (Math.hypot(dx, dy) > 45) {
+                closeQuestionPopup();
+              }
+            }, []);
 
             const closePopup = useCallback(() => {
               if (!popup) return;
@@ -470,21 +504,26 @@
             if (popup.type === 'question') {
               const optionEntries = popup.options ? Object.entries(popup.options) : [];
               return (
-                <div className="absolute inset-0 z-[100] bg-white flex flex-col fullscreen-popup-anim" dir="rtl">
-                  <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0">
-                    <span className="text-sm font-bold text-blue-500">שאלה מספר {popup.number} · {popup.category}</span>
-                    <button onClick={closeQuestionPopup} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200">
+                <div
+                  className="absolute inset-0 z-[100] bg-white flex flex-col overflow-hidden fullscreen-popup-anim"
+                  dir="rtl"
+                  onPointerDown={handleSwipeStart}
+                  onPointerUp={handleSwipeEnd}
+                >
+                  <div className="flex justify-between items-center px-5 py-3 border-b border-slate-100 shrink-0">
+                    <span className="text-xs font-bold text-blue-500">שאלה מספר {popup.number} · {popup.category}</span>
+                    <button onClick={closeQuestionPopup} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 shrink-0">
                       <XIcon />
                     </button>
                   </div>
-                  <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-4">
-                    {popup.intro && <p className="text-base text-slate-400 font-medium">{popup.intro}</p>}
-                    <h3 className="text-2xl font-black text-slate-800 leading-snug">{popup.question}</h3>
-                    <div className="flex flex-col gap-3 mt-2">
+                  <div className="flex-1 min-h-0 px-5 py-3 flex flex-col justify-center gap-2.5">
+                    {popup.intro && <p className="text-xs text-slate-400 font-medium leading-snug">{popup.intro}</p>}
+                    <h3 className="text-lg font-black text-slate-800 leading-snug">{popup.question}</h3>
+                    <div className="flex flex-col gap-1.5 mt-1">
                       {optionEntries.map(([letter, text]) => (
                         <div
                           key={letter}
-                          className="w-full py-3 px-4 bg-blue-50 rounded-2xl text-lg font-bold text-blue-900 border-2 border-blue-100 text-right"
+                          className="w-full py-1.5 px-3 bg-blue-50 rounded-xl text-sm font-bold text-blue-900 border-2 border-blue-100 text-right leading-snug"
                         >
                           {letter}. {text}
                         </div>
@@ -590,7 +629,7 @@
               >
                 
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="her" name="את" textRotationClass="rotate-90 whitespace-nowrap block" />
+                  <PlayerButton id="her" name="תורך" textRotationClass="rotate-90 whitespace-nowrap block" />
                 </div>
 
                 <div className="flex-1 h-full flex flex-col justify-center items-center gap-4 relative">
@@ -628,7 +667,7 @@
                 </div>
 
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="me" name="אני" textRotationClass="-rotate-90 whitespace-nowrap block" />
+                  <PlayerButton id="me" name="תורי" textRotationClass="-rotate-90 whitespace-nowrap block" />
                 </div>
 
                 <PopupOverlay />
