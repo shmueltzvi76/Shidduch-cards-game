@@ -270,6 +270,7 @@
 
           const playSound = useCallback((type) => {
             try {
+              initAudio();
               const ctx = audioCtxRef.current;
               if (!ctx) return;
               const osc = ctx.createOscillator();
@@ -280,14 +281,14 @@
               if (type === 'tick') {
                 osc.frequency.setValueAtTime(600, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.05);
-                gain.gain.setValueAtTime(0.035, ctx.currentTime);
+                gain.gain.setValueAtTime(0.06, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.05);
               } else if (type === 'chime') {
                 osc.frequency.setValueAtTime(500, ctx.currentTime);
                 osc.frequency.setValueAtTime(900, ctx.currentTime + 0.1);
-                gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.6);
@@ -295,20 +296,20 @@
                 osc.frequency.setValueAtTime(440, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.18);
                 gain.gain.setValueAtTime(0.001, ctx.currentTime);
-                gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
+                gain.gain.linearRampToValueAtTime(0.14, ctx.currentTime + 0.05);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.35);
               } else if (type === 'close') {
                 osc.frequency.setValueAtTime(520, ctx.currentTime);
                 osc.frequency.exponentialRampToValueAtTime(280, ctx.currentTime + 0.25);
-                gain.gain.setValueAtTime(0.07, ctx.currentTime);
+                gain.gain.setValueAtTime(0.12, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.3);
               }
             } catch (e) {}
-          }, []);
+          }, [initAudio]);
 
           const triggerVibration = useCallback((pattern) => {
             try {
@@ -476,6 +477,10 @@
               }
             }, []);
 
+            const handleSwipeCancel = useCallback(() => {
+              swipeRef.current.active = false;
+            }, []);
+
             const closePopup = useCallback(() => {
               if (!popup) return;
               const type = popup.type;
@@ -505,10 +510,12 @@
               const optionEntries = popup.options ? Object.entries(popup.options) : [];
               return (
                 <div
-                  className="absolute inset-0 z-[100] bg-white flex flex-col overflow-hidden fullscreen-popup-anim"
+                  className="absolute inset-0 z-[100] bg-white flex flex-col overflow-hidden fullscreen-popup-anim touch-none"
                   dir="rtl"
+                  style={{ touchAction: 'none' }}
                   onPointerDown={handleSwipeStart}
                   onPointerUp={handleSwipeEnd}
+                  onPointerCancel={handleSwipeCancel}
                 >
                   <div className="flex justify-between items-center px-5 py-3 border-b border-slate-100 shrink-0">
                     <span className="text-xs font-bold text-blue-500">שאלה מספר {popup.number} · {popup.category}</span>
@@ -617,7 +624,7 @@
           const landscapeHeight = dims.h; 
 
           return (
-            <div className="fixed inset-0 overflow-hidden flex items-center justify-center">
+            <div className="fixed inset-0 overflow-hidden flex items-center justify-center" onPointerDown={initAudio}>
               <div 
                 className="absolute bg-gradient-to-br from-indigo-50 via-sky-50 to-rose-50 flex flex-row p-6 gap-6"
                 dir="rtl"
