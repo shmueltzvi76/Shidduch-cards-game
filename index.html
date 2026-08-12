@@ -238,7 +238,19 @@
           const audioCtxRef = useRef(null);
 
           useEffect(() => {
-            const updateDims = () => setDims({ w: window.innerHeight, h: window.innerWidth });
+            try {
+              if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('portrait').catch(() => {});
+              }
+            } catch (e) {}
+          }, []);
+
+          useEffect(() => {
+            const updateDims = () => {
+              const longSide = Math.max(window.innerWidth, window.innerHeight);
+              const shortSide = Math.min(window.innerWidth, window.innerHeight);
+              setDims({ w: longSide, h: shortSide });
+            };
             updateDims();
             window.addEventListener('resize', updateDims);
             return () => window.removeEventListener('resize', updateDims);
