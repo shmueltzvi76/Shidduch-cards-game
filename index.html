@@ -58,7 +58,33 @@
         .fullscreen-popup-anim {
             animation: fade-in 0.2s ease forwards;
         }
-        
+
+        .game-rotator {
+            width: 100vh;
+            height: 100vw;
+            transform: rotate(-90deg);
+        }
+
+        .turn-label-her {
+            transform: rotate(90deg);
+        }
+
+        .turn-label-me {
+            transform: rotate(-90deg);
+        }
+
+        @media (orientation: landscape) {
+            .game-rotator {
+                width: 100vw;
+                height: 100vh;
+                transform: none;
+            }
+
+            .turn-label-her, .turn-label-me {
+                transform: none;
+            }
+        }
+
         .active-turn-wrapper {
             position: relative;
             overflow: hidden;
@@ -236,7 +262,6 @@
           const [popup, setPopup] = useState(null);
           const [pendingCatTransition, setPendingCatTransition] = useState(null);
           const [isLoaded, setIsLoaded] = useState(false);
-          const [dims, setDims] = useState({ w: 0, h: 0, physicallyLandscape: false });
 
           const stateRef = useRef(state);
           const audioCtxRef = useRef(null);
@@ -247,17 +272,6 @@
                 screen.orientation.lock('portrait').catch(() => {});
               }
             } catch (e) {}
-          }, []);
-
-          useEffect(() => {
-            const updateDims = () => {
-              const w = window.innerWidth;
-              const h = window.innerHeight;
-              setDims({ w: Math.max(w, h), h: Math.min(w, h), physicallyLandscape: w > h });
-            };
-            updateDims();
-            window.addEventListener('resize', updateDims);
-            return () => window.removeEventListener('resize', updateDims);
           }, []);
 
           useEffect(() => {
@@ -643,30 +657,22 @@
             );
           };
 
-          if (!isLoaded || dims.w === 0) return <div className="fixed inset-0 bg-slate-100"></div>;
+          if (!isLoaded) return <div className="fixed inset-0 bg-slate-100"></div>;
 
           const cat = CATEGORIES[state.currentCatIdx];
           const totalInCat = cat ? cat.ids.length : 0;
           const drawnInCat = cat ? state.drawnNumbers.filter(n => cat.ids.includes(n)).length : 0;
           const remainingInCat = totalInCat - drawnInCat;
 
-          const landscapeWidth = dims.w; 
-          const landscapeHeight = dims.h; 
-
           return (
             <div className="fixed inset-0 overflow-hidden flex items-center justify-center" onPointerDown={initAudio}>
-              <div 
-                className="absolute bg-gradient-to-br from-indigo-50 via-sky-50 to-rose-50 flex flex-row p-6 gap-6"
+              <div
+                className="game-rotator absolute bg-gradient-to-br from-indigo-50 via-sky-50 to-rose-50 flex flex-row p-6 gap-6"
                 dir="rtl"
-                style={{
-                  width: `${landscapeWidth}px`,
-                  height: `${landscapeHeight}px`,
-                  transform: dims.physicallyLandscape ? 'none' : 'rotate(-90deg)'
-                }}
               >
-                
+
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="her" name="תורך" textRotationClass={dims.physicallyLandscape ? "whitespace-nowrap block" : "rotate-90 whitespace-nowrap block"} />
+                  <PlayerButton id="her" name="תורך" textRotationClass="turn-label-her whitespace-nowrap block" />
                 </div>
 
                 <div className="flex-1 h-full flex flex-col justify-center items-center gap-4 relative">
@@ -704,7 +710,7 @@
                 </div>
 
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="me" name="תורי" textRotationClass={dims.physicallyLandscape ? "whitespace-nowrap block" : "-rotate-90 whitespace-nowrap block"} />
+                  <PlayerButton id="me" name="תורי" textRotationClass="turn-label-me whitespace-nowrap block" />
                 </div>
 
                 <PopupOverlay />
