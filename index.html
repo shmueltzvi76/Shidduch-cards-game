@@ -258,11 +258,25 @@
 
           const stateRef = useRef(state);
           const audioCtxRef = useRef(null);
+          const lockAttemptedRef = useRef(false);
 
-          useEffect(() => {
+          const lockOrientation = useCallback(() => {
+            if (lockAttemptedRef.current) return;
+            lockAttemptedRef.current = true;
             try {
-              if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('portrait').catch(() => {});
+              const el = document.documentElement;
+              const requestFs = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+              const doLock = () => {
+                try {
+                  if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('portrait').catch(() => {});
+                  }
+                } catch (e) {}
+              };
+              if (requestFs && !document.fullscreenElement) {
+                Promise.resolve(requestFs.call(el)).then(doLock).catch(doLock);
+              } else {
+                doLock();
               }
             } catch (e) {}
           }, []);
@@ -658,7 +672,7 @@
           const remainingInCat = totalInCat - drawnInCat;
 
           return (
-            <div className="fixed inset-0 overflow-hidden flex items-center justify-center" onPointerDown={initAudio}>
+            <div className="fixed inset-0 overflow-hidden flex items-center justify-center" onPointerDown={() => { initAudio(); lockOrientation(); }}>
               <div
                 className="game-rotator absolute bg-gradient-to-br from-indigo-50 via-sky-50 to-rose-50 flex flex-row p-6 gap-6"
                 dir="rtl"
