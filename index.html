@@ -236,7 +236,7 @@
           const [popup, setPopup] = useState(null);
           const [pendingCatTransition, setPendingCatTransition] = useState(null);
           const [isLoaded, setIsLoaded] = useState(false);
-          const [dims, setDims] = useState({ w: 0, h: 0 });
+          const [dims, setDims] = useState({ w: 0, h: 0, physicallyLandscape: false });
 
           const stateRef = useRef(state);
           const audioCtxRef = useRef(null);
@@ -251,9 +251,9 @@
 
           useEffect(() => {
             const updateDims = () => {
-              const longSide = Math.max(window.innerWidth, window.innerHeight);
-              const shortSide = Math.min(window.innerWidth, window.innerHeight);
-              setDims({ w: longSide, h: shortSide });
+              const w = window.innerWidth;
+              const h = window.innerHeight;
+              setDims({ w: Math.max(w, h), h: Math.min(w, h), physicallyLandscape: w > h });
             };
             updateDims();
             window.addEventListener('resize', updateDims);
@@ -661,12 +661,12 @@
                 style={{
                   width: `${landscapeWidth}px`,
                   height: `${landscapeHeight}px`,
-                  transform: 'rotate(-90deg)'
+                  transform: dims.physicallyLandscape ? 'none' : 'rotate(-90deg)'
                 }}
               >
                 
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="her" name="תורך" textRotationClass="rotate-90 whitespace-nowrap block" />
+                  <PlayerButton id="her" name="תורך" textRotationClass={dims.physicallyLandscape ? "whitespace-nowrap block" : "rotate-90 whitespace-nowrap block"} />
                 </div>
 
                 <div className="flex-1 h-full flex flex-col justify-center items-center gap-4 relative">
@@ -704,7 +704,7 @@
                 </div>
 
                 <div className="w-[120px] shrink-0 h-full">
-                  <PlayerButton id="me" name="תורי" textRotationClass="-rotate-90 whitespace-nowrap block" />
+                  <PlayerButton id="me" name="תורי" textRotationClass={dims.physicallyLandscape ? "whitespace-nowrap block" : "-rotate-90 whitespace-nowrap block"} />
                 </div>
 
                 <PopupOverlay />
